@@ -1,224 +1,13 @@
-import os
+from tkinter import *
+from tkinter import messagebox, filedialog
 import sqlite3
 import tkinter as tk
-from tkinter import *
-from tkinter import messagebox, ttk, StringVar, scrolledtext, font
-from tkinter import filedialog
-from fpdf import FPDF
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk
-
-conn = sqlite3.connect('food_menu.db')
-cursor = conn.cursor()
-
-cursor.execute('''
-CREATE TABLE IF NOT EXISTS menu (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    price REAL NOT NULL
-)
-''')
-conn.commit()
-
-
-# Admin Menu Functions
-def add_food_item(name, price):
-    cursor.execute("INSERT INTO menu (name, price) VALUES (?, ?)", (name, price))
-    conn.commit()
-    load_menu_items()
-
-
-def update_food_item(item_id, name, price):
-    cursor.execute("UPDATE menu SET name = ?, price = ? WHERE id = ?", (name, price, item_id))
-    conn.commit()
-    load_menu_items()
-
-
-def delete_food_item(item_id):
-    cursor.execute("DELETE FROM menu WHERE id = ?", (item_id,))
-    conn.commit()
-    load_menu_items()
-
-
-def load_menu_items():
-    for row in menu_tree.get_children():
-        menu_tree.delete(row)
-
-    cursor.execute("SELECT * FROM menu")
-    for row in cursor.fetchall():
-        menu_tree.insert('', tk.END, values=row)
-
-
-# Admin Menu Interface
-def admin_menu():
-    admin_win = tk.Toplevel()
-    admin_win.title("Admin Menu")
-
-    global menu_tree
-    menu_tree = ttk.Treeview(admin_win, columns=('ID', 'Name', 'Price'), show='headings')
-    menu_tree.heading('ID', text='ID')
-    menu_tree.heading('Name', text='Name')
-    menu_tree.heading('Price', text='Price')
-    menu_tree.pack(pady=20)
-
-    load_menu_items()
-
-    def on_add():
-        name = name_entry.get()
-        price = float(price_entry.get())
-        add_food_item(name, price)
-
-    def on_update():
-        selected_item = menu_tree.selection()[0]
-        item_id = menu_tree.item(selected_item)['values'][0]
-        name = name_entry.get()
-        price = float(price_entry.get())
-        update_food_item(item_id, name, price)
-
-    def on_delete():
-        selected_item = menu_tree.selection()[0]
-        item_id = menu_tree.item(selected_item)['values'][0]
-        delete_food_item(item_id)
-
-    name_entry = tk.Entry(admin_win)
-    name_entry.pack()
-    price_entry = tk.Entry(admin_win)
-    price_entry.pack()
-
-    add_button = tk.Button(admin_win, text="Add Item", command=on_add)
-    add_button.pack()
-    update_button = tk.Button(admin_win, text="Update Item", command=on_update)
-    update_button.pack()
-    delete_button = tk.Button(admin_win, text="Delete Item", command=on_delete)
-    delete_button.pack()
-
-
-# Customer Menu Interface
-def customer_menu():
-    customer_win = tk.Toplevel()
-    customer_win.title("Customer Menu")
-
-    menu_tree = ttk.Treeview(customer_win, columns=('ID', 'Name', 'Price'), show='headings')
-    menu_tree.heading('ID', text='ID')
-    menu_tree.heading('Name', text='Name')
-    menu_tree.heading('Price', text='Price')
-    menu_tree.pack(pady=20)
-
-    cursor.execute("SELECT * FROM menu")
-    for row in cursor.fetchall():
-        menu_tree.insert('', tk.END, values=row)
-
-
-
-# Close the database connection when the application closes
-conn.close()
-
-
-# Database Connection
-conn = sqlite3.connect("admin_food.db")
-cursor = conn.cursor()
-
-# Global Variables
-current_category = "food"
-customers = []  # For Analytics
-
-# Function to create tables if they don't exist
-def Database():
-    global conn, cursor
-    conn = sqlite3.connect("admin_food.db")
-    cursor = conn.cursor()
-    cursor.execute(
-        "CREATE TABLE IF NOT EXISTS `food` (food_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, food_name TEXT, "
-        "description TEXT, price REAL, image_path TEXT)")
-    cursor.execute(
-        "CREATE TABLE IF NOT EXISTS `drinks` (drink_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, drink_name TEXT, "
-        "description TEXT, price REAL, image_path TEXT)")
-    cursor.execute(
-        "CREATE TABLE IF NOT EXISTS `desserts` (dessert_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, dessert_name TEXT, "
-        "description TEXT, price REAL, image_path TEXT)")
-    cursor.execute(
-        "CREATE TABLE IF NOT EXISTS `users` (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT, "
-        "email TEXT, role TEXT, password TEXT)")
-    conn.commit()
-
-    # Create the 'orders' table if it doesn't exist
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS orders (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            customer TEXT,
-            items TEXT,
-            status TEXT DEFAULT 'Pending'
-        )
-    """)
-    conn.commit()
-
-
-Database()  # Initialize the database connection
-
-# Initializing user table with admin credentials
-cursor.execute("INSERT OR IGNORE INTO users (name, email, role, password) VALUES ('Admin', 'admin', 'admin', 'admin123')")
-conn.commit()
-
-# Password Visibility Function
-def show_hide_password():
-    if password_entry.cget('show') == '':
-        password_entry.config(show='*')
-        show_password_button.config(text='Show')
-    else:
-        password_entry.config(show='')
-        show_password_button.config(text='Hide')
-
-
-# Admin Login Function
-def login():
-    username = username_entry.get()
-    password = password_entry.get()
-    cursor.execute("SELECT * FROM users WHERE email=? AND password=?", (username, password))
-    user = cursor.fetchone()
-    if user and user[3] == "admin":
-        messagebox.showinfo("Login Successful", "Welcome, Admin!")
-        admin_login_page.destroy()
-        Home()
-    else:
-        messagebox.showerror("Login Failed", "Invalid username or password.")
-
-
-# Initial Page Display Function
-def show_initial_page():
-    global initial_page, background_label
-    initial_page = Tk()
-    initial_page.title("Welcome")
-    initial_page.geometry("1920x1080+0+0")
-    initial_page.state("zoomed")
-
-    # Load and set the background image
-    image_path = "C:/Users/Kalaban/PycharmProjects/pythonProject/Project (Customer Support)/Images/BG 1.jpeg"
-    bg_image = Image.open(image_path)
-    bg_image = bg_image.resize((initial_page.winfo_screenwidth(), initial_page.winfo_screenheight()), Image.LANCZOS)
-    background_image = ImageTk.PhotoImage(bg_image)
-
-    background_label = Label(initial_page, image=background_image)
-    background_label.place(relwidth=1, relheight=1)
-    background_label.image = background_image  # Keep a reference to avoid garbage collection
-
-    lbl_welcome = Label(initial_page, text="Are you an Admin or a Customer?", font=('times new roman', 20, 'bold'), bg='beige')
-    lbl_welcome.pack(pady=50)
-
-    button_frame = Frame(initial_page, bg='beige')
-    button_frame.pack(pady=20)
-
-    btn_admin = Button(button_frame, text="Admin", font=('times new roman', 16), width=20, command=open_admin_login, bg='black', fg='white')
-    btn_admin.grid(row=0, column=0, padx=10, pady=10)
-    btn_admin.bind("<Enter>", lambda e: btn_admin.config(bg="gray"))
-    btn_admin.bind("<Leave>", lambda e: btn_admin.config(bg="black"))
-
-    btn_customer = Button(button_frame, text="Customer", font=('times new roman', 16), width=20, bg='black', fg='white', command=open_customer_login)
-    btn_customer.grid(row=1, column=0, padx=10, pady=10)
-    btn_customer.bind("<Enter>", lambda e: btn_customer.config(bg="gray"))
-    btn_customer.bind("<Leave>", lambda e: btn_customer.config(bg="black"))
-
-    initial_page.mainloop()
+import os
+from tkinter import scrolledtext, font
+from tkinter import messagebox
+from fpdf import FPDF
 
 
 def open_customer_login():
@@ -252,6 +41,7 @@ def open_customer_login():
     PASSWORD_REGISTER = StringVar()
     FIRSTNAME = StringVar()
     LASTNAME = StringVar()
+    PHOTO_PATH = StringVar()
 
     # Functions
     def Login():
@@ -275,12 +65,22 @@ def open_customer_login():
         password = PASSWORD_REGISTER.get()
         firstname = FIRSTNAME.get()
         lastname = LASTNAME.get()
+        photo_path = PHOTO_PATH.get()
 
-        if username and password and firstname and lastname:
+        if username and password and firstname and lastname and photo_path:
+            try:
+                with open(photo_path, 'rb') as file:
+                    photo = file.read()
+                    if not photo:
+                        raise ValueError("Photo file is empty or cannot be read")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to read photo file: {e}")
+                return
+
             try:
                 cursor.execute(
-                    "INSERT INTO user (username, password, firstname, lastname) VALUES (?, ?, ?, ?)",
-                    (username, password, firstname, lastname))
+                    "INSERT INTO user (username, password, firstname, lastname, photo) VALUES (?, ?, ?, ?, ?)",
+                    (username, password, firstname, lastname, photo))
                 conn.commit()
                 messagebox.showinfo("Success", "Registration successful!")
                 LoginForm()
@@ -291,31 +91,38 @@ def open_customer_login():
         else:
             messagebox.showerror("Error", "Please fill in all fields")
 
-
+    def upload_photo():
+        file_path = filedialog.askopenfilename(filetypes=[("Image files", "*.jpg *.jpeg *.png")])
+        if file_path:
+            PHOTO_PATH.set(file_path)
+            messagebox.showinfo("Photo selected", f"Selected photo: {file_path}")
 
     def LoginForm():
         clear_frame()
         Label(root, text="Login", font=("Ink Free", 40), bg="beige").pack()
-        Label(root, text="Username", font=("Times New Romans", 20), bg="beige").pack()
+        Label(root, text="Username",font=("Times New Romans", 20), bg="beige").pack()
         Entry(root, textvariable=USERNAME_LOGIN, font=15).pack()
-        Label(root, text="Password", font=("Times New Romans", 20), bg="beige").pack()
+        Label(root, text="Password",font=("Times New Romans", 20), bg="beige").pack()
         Entry(root, textvariable=PASSWORD_LOGIN, font=15, show='*').pack()
-        Button(root, text="Login", bg="Black", fg="White",font=("Times New Romans", 15), command=Login).pack()
-        Button(root, text="Go to Register", bg="Black", fg="White",font=("Times New Romans", 15), command=RegisterForm).pack()
+        Button(root, text="Login",bg="Black", fg="White",font=("Times New Romans", 15), command=Login).pack()
+        Button(root, text="Go to Register",bg="Black", fg="White",font=("Times New Romans", 15), command=RegisterForm).pack()
 
     def RegisterForm():
         clear_frame()
         Label(root, text="Register", font=("Ink Free", 40), bg="beige").pack()
-        Label(root, text="Username", font=("Times New Romans", 20), bg="beige").pack()
-        Entry(root, textvariable=USERNAME_REGISTER, font= 15).pack()
-        Label(root, text="Password", font=("Times New Romans", 20), bg="beige").pack()
-        Entry(root, textvariable=PASSWORD_REGISTER, show='*', font= 15).pack()
+        Label(root, text="Username",font=("Times New Romans", 20), bg="beige").pack()
+        Entry(root, textvariable=USERNAME_REGISTER, font=15).pack()
+        Label(root, text="Password",font=("Times New Romans", 20), bg="beige").pack()
+        Entry(root, textvariable=PASSWORD_REGISTER, font=15, show='*').pack()
         Label(root, text="First Name",font=("Times New Romans", 20), bg="beige").pack()
-        Entry(root, textvariable=FIRSTNAME, font=15).pack()
-        Label(root, text="Last Name", font=("Times New Romans", 20), bg="beige").pack()
+        Entry(root, textvariable=FIRSTNAME,font=15).pack()
+        Label(root, text="Last Name",font=("Times New Romans", 20), bg="beige").pack()
         Entry(root, textvariable=LASTNAME, font=15).pack()
-        Button(root, text="Register", bg="Black", fg="White",font=("Times New Romans", 15), command=Register).pack()
-        Button(root, text="Go to Login", bg="Black", fg="White",font=("Times New Romans", 15), command=LoginForm).pack()
+        Label(root, text="Photo",font=("Times New Romans", 20), bg="beige").pack()
+        Button(root, text="Upload Photo",bg="Black", fg="White",font=("Times New Romans", 15), command=upload_photo).pack()
+        Label(root, textvariable=PHOTO_PATH,font=("Times New Romans", 20), bg="beige").pack()
+        Button(root, text="Register",bg="Black", fg="White",font=("Times New Romans", 15), command=Register).pack()
+        Button(root, text="Go to Login",bg="Black", fg="White",font=("Times New Romans", 15), command=LoginForm).pack()
 
     def ShowFoodWindow():
         def show_menu():
@@ -401,7 +208,7 @@ def open_customer_login():
                 self.root.geometry("800x600")
                 self.root.config(bg="#f8f8f8")
 
-                self.label = tk.Label(root, text="Menu", font=("Arial", 24), bg="white")
+                self.label = tk.Label(root, text="Menu", font=("Arial", 24), bg="pink")
                 self.label.pack(pady=10)
 
                 self.category_frame = tk.Frame(root, bg="#f8f8f8")
@@ -814,16 +621,10 @@ def open_customer_login():
         root = tk.Tk()
         root.title("Customer Homepage")
         root.geometry("1000x1000")
-
-        # Create a PhotoImage object
-        background_image = tk.PhotoImage(file="background_image.png")
-
-        # Create a Label widget with the image
-        background_label = tk.Label(root, image=background_image)
-        background_label.place(x=0, y=0, relwidth=1, relheight=1)
+        root.configure(bg="pink")
 
         # Create and place the title label at the top center
-        title_label = tk.Label(root, text="HOME", font=("Ink Free", 50, "bold"), fg="black", bg="white")
+        title_label = tk.Label(root, text="HOME", font=("Ink Free", 50, "bold"), fg="black", bg="pink")
         title_label.pack(pady=60)
 
         # Create and place the buttons on the window
@@ -858,449 +659,4 @@ def open_customer_login():
     LoginForm()
     root.mainloop()
 
-# Admin Login Page Display Function
-def open_admin_login():
-    global admin_login_page, username_entry, password_entry, show_password_button
-
-    initial_page.destroy()
-    admin_login_page = Tk()
-    admin_login_page.title("Admin Login")
-    admin_login_page.geometry("1920x1080+0+0")
-    admin_login_page.config(bg="beige")
-    admin_login_page.state("zoomed")
-
-    login_frame = Frame(admin_login_page)
-    login_frame.pack(pady=50)
-
-    title_label = Label(login_frame, text="Admin Login", font=('Ink Free', 40, 'bold', 'underline'))
-    title_label.grid(row=0, column=0, columnspan=3, pady=20)
-
-    username_label = Label(login_frame, text="Username:", bg="beige", font= 25)
-    username_label.grid(row=1, column=0, padx=(10, 0))
-    username_entry = Entry(login_frame)
-    username_entry.grid(row=1, column=1, padx=(0, 10), pady=5)
-
-    password_label = Label(login_frame, text="Password:", bg="beige", font= 25)
-    password_label.grid(row=2, column=0, padx=(10, 0))
-    password_entry = Entry(login_frame, show="*")
-    password_entry.grid(row=2, column=1, padx=(0, 10), pady=5)
-
-    show_password_button = Button(login_frame, text="Show", command=show_hide_password)
-    show_password_button.grid(row=2, column=2, padx=(0, 10), pady=5)
-
-    login_button = Button(login_frame, text="Login", bg="Black", fg="White", font= 30, command=login)
-    login_button.grid(row=3, column=0, columnspan=3, pady=10)
-
-    admin_login_page.mainloop()
-
-
-# Admin Dashboard Function
-def Home():
-    global HomeFrame
-    HomeFrame = Tk()
-    HomeFrame.title("Admin Dashboard")
-    HomeFrame.attributes('-fullscreen', True)
-
-    lbl_home = Label(HomeFrame, text="Welcome to the Admin Dashboard", font=('times new roman', 20, 'bold'))
-    lbl_home.pack(pady=50)
-
-    button_frame = Frame(HomeFrame)
-    button_frame.pack(pady=20)
-
-    btn_menu_management = Button(button_frame, text="Menu Management", font=('times new roman', 16), width=20,
-                                 command=MenuManagement, bg='black', fg='white', relief='raised')
-    btn_menu_management.grid(row=0, column=0, padx=10, pady=10)
-    btn_menu_management.bind("<Enter>", lambda e: btn_menu_management.config(bg="gray"))
-    btn_menu_management.bind("<Leave>", lambda e: btn_menu_management.config(bg="black"))
-
-    btn_user_management = Button(button_frame, text="User Management", font=('times new roman', 16), width=20,
-                                 command=UserManagement, bg='black', fg='white', relief='raised')
-    btn_user_management.grid(row=1, column=0, padx=10, pady=10)
-    btn_user_management.bind("<Enter>", lambda e: btn_user_management.config(bg="gray"))
-    btn_user_management.bind("<Leave>", lambda e: btn_user_management.config(bg="black"))
-
-    btn_order_management = Button(button_frame, text="Order Management", font=('times new roman', 16), width=20,
-                                  command=open_order_management, bg='black', fg='white', relief='raised')
-    btn_order_management.grid(row=2, column=0, padx=10, pady=10)
-    btn_order_management.bind("<Enter>", lambda e: btn_order_management.config(bg="gray"))
-    btn_order_management.bind("<Leave>", lambda e: btn_order_management.config(bg="black"))
-
-    btn_logout = Button(button_frame, text="Logout", font=('times new roman', 16), width=20, command=Logout, bg='black',
-                        fg='white', relief='raised')
-    btn_logout.grid(row=4, column=0, padx=10, pady=10)
-    btn_logout.bind("<Enter>", lambda e: btn_logout.config(bg="gray"))
-    btn_logout.bind("<Leave>", lambda e: btn_logout.config(bg="black"))
-
-    HomeFrame.mainloop()
-
-# Menu Management Function
-def MenuManagement():
-    FoodDashboard()
-
-
-# Food Dashboard Function
-def FoodDashboard():
-    global food_treeview
-    global current_category
-
-    def back_to_home():
-        FoodFrame.destroy()
-        HomeFrame.deiconify()
-
-    HomeFrame.withdraw()
-    FoodFrame = Toplevel()
-    FoodFrame.title("Food Dashboard")
-    FoodFrame.geometry("1920x1080+0+0")
-    FoodFrame.state("zoomed")
-
-    style = ttk.Style()
-    style.configure("Treeview.Heading", font=('times new roman', 14), foreground="black")
-
-    food_options_frame = Frame(FoodFrame)
-    food_options_frame.pack(side="top", pady=20)
-
-    btn_add_food = Button(food_options_frame, text="Add Food", font=('times new roman', 16), width=15,
-                             command=add_food_window, bg='black', fg='white', relief='raised')
-    btn_add_food.bind("<Enter>", lambda e: btn_add_food.config(bg="gray"))
-    btn_add_food.bind("<Leave>", lambda e: btn_add_food.config(bg="black"))
-    btn_add_food.pack(side="left", padx=10)
-
-    btn_delete_food = Button(food_options_frame, text="Delete Food", font=('times new roman', 16), width=15,
-                                command=delete_food, bg='black', fg='white', relief='raised')
-    btn_delete_food.bind("<Enter>", lambda e: btn_delete_food.config(bg="gray"))
-    btn_delete_food.bind("<Leave>", lambda e: btn_delete_food.config(bg="black"))
-    btn_delete_food.pack(side="left", padx=10)
-
-    btn_update_food = Button(food_options_frame, text="Edit Food", font=('times new roman', 16), width=15,
-                                command=update_food_window, bg='black', fg='white', relief='raised')
-    btn_update_food.bind("<Enter>", lambda e: btn_update_food.config(bg="gray"))
-    btn_update_food.bind("<Leave>", lambda e: btn_update_food.config(bg="black"))
-    btn_update_food.pack(side="left", padx=10)
-
-    category_frame = Frame(FoodFrame)
-    category_frame.pack(side="top", pady=20)
-
-    category_label = Label(category_frame, text="Select Category:", font=('times new roman', 16))
-    category_label.pack(side="left", padx=10, pady=10)
-
-    categories = ['Food', 'Drinks', 'Desserts']
-    category_var = StringVar()
-    category_var.set(categories[0])
-
-    category_combobox = ttk.Combobox(category_frame, textvariable=category_var, values=categories, font=('times new roman', 16), width=15)
-    category_combobox.pack(side="left", padx=10, pady=10)
-
-    def on_category_change(event):
-        selected_category = category_var.get().lower()
-        load_menu(selected_category)
-
-    category_combobox.bind("<<ComboboxSelected>>", on_category_change)
-
-    food_treeview = ttk.Treeview(FoodFrame, columns=("ID", "Name", "Description", "Price", "Image Path"), show="headings")
-    food_treeview.heading("ID", text="ID")
-    food_treeview.heading("Name", text="Name")
-    food_treeview.heading("Description", text="Description")
-    food_treeview.heading("Price", text="Price")
-    food_treeview.heading("Image Path", text="Image Path")
-    food_treeview.pack(fill="both", expand=True, padx=20, pady=20)
-
-    load_menu(current_category)
-
-    btn_back = Button(FoodFrame, text="Back to Home", font=('times new roman', 16), width=15,
-                      command=back_to_home, bg='red', fg='white', relief='raised')
-    btn_back.pack(side="bottom", pady=20)
-
-def load_menu(category):
-    global current_category
-    current_category = category
-
-    for item in food_treeview.get_children():
-        food_treeview.delete(item)
-
-    cursor.execute(f"SELECT * FROM {category}")
-    rows = cursor.fetchall()
-
-    for row in rows:
-        food_treeview.insert("", "end", values=row)
-
-# Function to add a food item
-def add_food_window():
-    add_win = Toplevel()
-    add_win.title("Add Food Item")
-    add_win.geometry("800x600")
-    add_win.state("zoomed")
-
-    # Labels and Entries
-    Label(add_win, text="Food Name:").grid(row=0, column=0, padx=10, pady=10, sticky='e')
-    food_name_entry = Entry(add_win)
-    food_name_entry.grid(row=0, column=1, padx=10, pady=10)
-
-    Label(add_win, text="Description:").grid(row=1, column=0, padx=10, pady=10, sticky='e')
-    food_description_entry = Entry(add_win)
-    food_description_entry.grid(row=1, column=1, padx=10, pady=10)
-
-    Label(add_win, text="Price:").grid(row=2, column=0, padx=10, pady=10, sticky='e')
-    food_price_entry = Entry(add_win)
-    food_price_entry.grid(row=2, column=1, padx=10, pady=10)
-
-    Label(add_win, text="Image Path:").grid(row=0, column=2, padx=10, pady=10, sticky='e')
-    food_image_path_entry = Entry(add_win)
-    food_image_path_entry.grid(row=0, column=3, padx=10, pady=10, sticky='we', columnspan=2)
-
-    def select_image():
-        file_path = filedialog.askopenfilename(
-            initialdir="/",
-            title="Select Image File",
-            filetypes=[("Image Files", ("*.png", "*.jpg", "*.jpeg", "*.gif"))]
-        )
-        food_image_path_entry.delete(0, END)
-        food_image_path_entry.insert(0, file_path)
-
-    select_image_button = Button(add_win, text="Select Image", command=select_image)
-    select_image_button.grid(row=0, column=5, padx=10, pady=10, sticky='w')
-
-    # Button to Add Food
-    add_button = Button(add_win, text="Add", command=lambda: add_food(food_name_entry, food_description_entry,
-                                                                    food_price_entry, food_image_path_entry))
-    add_button.grid(row=3, column=1, columnspan=2, pady=10)
-
-    # Additional styling
-    add_win.grid_columnconfigure(1, weight=1)
-    add_win.grid_columnconfigure(3, weight=1)
-
-    add_win.mainloop()
-
-
-def add_food(name_entry, description_entry, price_entry, image_path_entry):
-    name = name_entry.get()
-    description = description_entry.get()
-    price = float(price_entry.get())
-    image_path = image_path_entry.get()
-
-    cursor.execute(f"INSERT INTO {current_category} (food_name, description, price, image_path) VALUES (?, ?, ?, ?)",
-                   (name, description, price, image_path))
-    conn.commit()
-    load_menu(current_category)
-
-
-def delete_food():
-    selected_item = food_treeview.selection()
-    if not selected_item:
-        messagebox.showerror("Error", "Please select an item to delete.")
-        return
-
-    item = food_treeview.item(selected_item)
-    food_id = item["values"][0]
-
-    cursor.execute(f"DELETE FROM {current_category} WHERE food_id=?", (food_id,))
-    conn.commit()
-    load_menu(current_category)
-
-
-def update_food_window():
-    selected_item = food_treeview.selection()
-    if not selected_item:
-        messagebox.showerror("Error", "Please select an item to update.")
-        return
-
-    item = food_treeview.item(selected_item)
-    food_id, name, description, price, image_path = item["values"]
-
-    update_win = Toplevel()
-    update_win.title("Update Food Item")
-    update_win.geometry("400x300")
-    update_win.resizable(False, False)
-
-    Label(update_win, text="Food Name:").grid(row=0, column=0, padx=10, pady=10)
-    food_name_entry = Entry(update_win)
-    food_name_entry.insert(0, name)
-    food_name_entry.grid(row=0, column=1, padx=10, pady=10)
-
-    Label(update_win, text="Description:").grid(row=1, column=0, padx=10, pady=10)
-    food_description_entry = Entry(update_win)
-    food_description_entry.insert(0, description)
-    food_description_entry.grid(row=1, column=1, padx=10, pady=10)
-
-    Label(update_win, text="Price:").grid(row=2, column=0, padx=10, pady=10)
-    food_price_entry = Entry(update_win)
-    food_price_entry.insert(0, price)
-    food_price_entry.grid(row=2, column=1, padx=10, pady=10)
-
-    Label(update_win, text="Image Path:").grid(row=3, column=0, padx=10, pady=10)
-    food_image_path_entry = Entry(update_win)
-    food_image_path_entry.insert(0, image_path)
-    food_image_path_entry.grid(row=3, column=1, padx=10, pady=10)
-
-    Button(update_win, text="Update", command=lambda: update_food(food_id, food_name_entry, food_description_entry,
-                                                                  food_price_entry, food_image_path_entry)).grid(
-        row=4, column=0, columnspan=2, pady=10)
-
-
-def update_food(food_id, name_entry, description_entry, price_entry, image_path_entry):
-    name = name_entry.get()
-    description = description_entry.get()
-    price = float(price_entry.get())
-    image_path = image_path_entry.get()
-
-    cursor.execute(
-        f"UPDATE {current_category} SET food_name=?, description=?, price=?, image_path=? WHERE food_id=?",
-        (name, description, price, image_path, food_id)
-    )
-    conn.commit()
-    load_menu(current_category)
-
-
-# User Management Function
-class UserListApp(Toplevel):
-    def __init__(self, master=None):
-        super().__init__(master)
-        self.title("User List Management System")
-        self.geometry("800x600")
-
-        self.create_widgets()
-        self.load_users()
-
-    def create_widgets(self):
-        self.tree = ttk.Treeview(self, columns=('ID', 'Name', 'Email', 'Role'), show='headings')
-        self.tree.heading('ID', text='User ID')
-        self.tree.heading('Name', text='Name')
-        self.tree.heading('Email', text='Email')
-        self.tree.heading('Role', text='Role')
-        self.tree.pack(pady=20, fill=BOTH, expand=True)
-
-    def load_users(self):
-        cursor.execute("SELECT * FROM users")
-        users = cursor.fetchall()
-        for user in users:
-            self.tree.insert('', tk.END, values=user)
-
-def UserManagement():
-    UserListApp()
-
-# Order Management Function
-class OrderManagementSystem(tk.Toplevel):
-    def __init__(self, master=None):
-        super().__init__(master)
-        self.title("Order Management System")
-        self.geometry("600x400")
-        self.create_widgets()
-
-    def create_widgets(self):
-        self.tree = ttk.Treeview(self, columns=('ID', 'Customer', 'Items', 'Status'), show='headings')
-        self.tree.heading('ID', text='Order ID')
-        self.tree.heading('Customer', text='Customer')
-        self.tree.heading('Items', text='Items')
-        self.tree.heading('Status', text='Status')
-
-        # Load orders from the database
-        cursor.execute("SELECT * FROM orders")
-        orders = cursor.fetchall()
-        for order in orders:
-            self.tree.insert('', tk.END, values=order)
-
-        self.tree.pack(pady=20)
-
-        self.status_var = tk.StringVar()
-        self.status_var.set('Pending')
-
-        self.status_label = tk.Label(self, text="Update Status:")
-        self.status_label.pack()
-
-        self.status_menu = ttk.Combobox(self, textvariable=self.status_var)
-        self.status_menu['values'] = ('Pending', 'In Progress', 'Completed', 'Cancelled')
-        self.status_menu.pack()
-
-        self.update_button = tk.Button(self, text="Update Order Status", command=self.update_status)
-        self.update_button.pack(pady=10)
-
-    def update_status(self):
-        selected_item = self.tree.selection()
-        if not selected_item:
-            messagebox.showwarning("Warning", "Please select an order to update.")
-            return
-
-        new_status = self.status_var.get()
-        for item in selected_item:
-            self.tree.item(item, values=(self.tree.item(item)['values'][0],
-                                         self.tree.item(item)['values'][1],
-                                         self.tree.item(item)['values'][2],
-                                         new_status))
-            order_id = self.tree.item(item)['values'][0]
-            # Update status in the database
-            cursor.execute("UPDATE orders SET status=? WHERE id=?", (new_status, order_id))
-            conn.commit()
-
-        messagebox.showinfo("Info", "Order status updated successfully.")
-
-def open_order_management():
-    OrderManagementSystem()
-
-# Analytics Function
-def Analytics():
-    analytics_win = Toplevel()
-    analytics_win.title("Analytics Dashboard")
-    analytics_win.geometry("800x600")
-    analytics_win.state("zoomed")
-
-    lbl_analytics = Label(analytics_win, text="Analytics Dashboard", font=('times new roman', 20, 'bold'))
-    lbl_analytics.pack(pady=50)
-
-    # Customer Insights Section
-    customer_insights_frame = ttk.LabelFrame(analytics_win, text="Customer Insights")
-    customer_insights_frame.pack(fill="both", expand="yes", padx=10, pady=10)
-
-    customer_tree = ttk.Treeview(customer_insights_frame, columns=('ID', 'Name', 'Email', 'Total Spent'), show='headings')
-    customer_tree.heading('ID', text='Customer ID')
-    customer_tree.heading('Name', text='Name')
-    customer_tree.heading('Email', text='Email')
-    customer_tree.heading('Total Spent', text='Total Spent ($)')
-
-    # Load customer data from the database
-    cursor.execute("SELECT * FROM users WHERE role='customer'")
-    customers = cursor.fetchall()
-
-    # Calculate total spent for each customer (you'll need order data for this)
-    # ... (Implementation for calculating total spent) ...
-
-    for customer in customers:
-        customer_tree.insert('', tk.END,
-                             values=(customer[0], customer[1], customer[2], 0))  # Placeholder total spent
-
-    customer_tree.pack(pady=20)
-
-    # Sales Graph Section
-    sales_graph_frame = ttk.LabelFrame(analytics_win, text="Sales Graph")
-    sales_graph_frame.pack(fill="both", expand="yes", padx=10, pady=10)
-
-    def plot_sales_graph():
-        # Fetch sales data from the database
-        # ... (Implementation to fetch sales data) ...
-
-        fig = Figure(figsize=(6, 4), dpi=100)
-        ax = fig.add_subplot(111)
-        months = list(sales_data.keys())  # Replace with actual months
-        sales = list(sales_data.values())  # Replace with actual sales data
-        ax.plot(months, sales, marker='o', linestyle='-', color='b')
-        ax.set_title('Monthly Sales')
-        ax.set_xlabel('Month')
-        ax.set_ylabel('Sales ($)')
-
-        canvas = FigureCanvasTkAgg(fig, master=sales_graph_frame)
-        canvas.draw()
-        canvas.get_tk_widget().pack()
-
-
-    btn_back = Button(analytics_win, text="Back to Home", font=('times new roman', 16), command=analytics_win.destroy,
-                      bg='red', fg='white', relief='raised')
-    btn_back.pack(pady=20)
-
-
-# Logout Function
-def Logout():
-    HomeFrame.destroy()
-    show_initial_page()
-
-
-# Main Execution
-if __name__ == "__main__":
-    show_initial_page()
+open_customer_login()
